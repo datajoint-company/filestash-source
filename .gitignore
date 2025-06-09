@@ -1,3 +1,4 @@
+./idea
 node_modules/
 .sass-cache
 dist/
@@ -7,7 +8,6 @@ test/
 *.o
 *.bin
 .DS_Store
-package-lock.json
 \#*\#
 .\#*
 *.log
@@ -16,10 +16,8 @@ package-lock.json
 *.swo
 .tern-port
 .tern-project.js
-*_test.go
 cover.*
 www
-.gitignore
 
 
 # frontend
@@ -30,3 +28,7 @@ public/package.json
 public/README.org
 
 filestash-enterprise
+public
+
+*.env
+!example.env

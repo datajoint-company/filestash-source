@@ -51,6 +51,184 @@
 - Pluggable Search (default is recursive search)
 - .. and many more
 
+# Developer Documentation
+
+## Local Build
+
+```console
+❯ npm --version
+10.2.3
+❯ go version
+go version go1.23.2 linux/amd64
+❯ webpack --version
+
+  System:
+    OS: Linux 6.2 Ubuntu 23.04 23.04 (Lunar Lobster)
+    CPU: (4) x64 Intel(R) Core(TM) i7-7600U CPU @ 2.80GHz
+    Memory: 9.54 GB / 15.36 GB
+  Binaries:
+    Node: 18.19.0 - ~/.nvm/versions/node/v18.19.0/bin/node
+    npm: 10.2.3 - ~/.nvm/versions/node/v18.19.0/bin/npm
+  Browsers:
+    Chrome: 127.0.6533.72
+  Packages:
+    babel-loader: ^7.1.5 => 7.1.5
+    compression-webpack-plugin: ^1.1.11 => 1.1.12
+    copy-webpack-plugin: ^4.5.2 => 4.6.0
+    css-loader: ^0.28.10 => 0.28.11
+    html-loader: ^0.4.5 => 0.4.5
+    html-webpack-plugin: ^5.5.3 => 5.6.0
+    little-loader: ^0.2.0 => 0.2.0
+    sass-loader: ^7.2.0 => 7.3.1
+    style-loader: ^0.20.2 => 0.20.3
+    uglifyjs-webpack-plugin: ^1.2.5 => 1.3.0
+    url-loader: ^0.6.2 => 0.6.2
+    webpack: ^5.87.0 => 5.95.0
+    webpack-bundle-analyzer: ^3.3.2 => 3.9.0
+    webpack-cli: ^5.1.4 => 5.1.4
+    worker-loader: ^2.0.0 => 2.0.0
+```
+
+```bash
+sudo apt-get install ffmpeg libwebp-dev libheif-dev libjpeg-dev libpng-dev
+npm install --legacy-peer-deps
+make build_frontend
+make build_init
+go build tidy
+make build_backend
+make -B debug
+
+# Optional: set s3_oidc defaults, can override at
+# localhost:8334/admin/settings
+export FS_S3_OIDC_CLIENT_ID='works'
+export FS_S3_OIDC_CLIENT_SECRET='xxx'
+export FS_S3_OIDC_CLIENT_AUD='workss3'
+export FS_S3_OIDC_TOKEN_ENDPOINT='https://keycloak.example.org/realms/datajoint/protocol/openid-connect/token'
+export FS_S3_OIDC_DEFAULT_ROLE_ARN='arn:aws:iam::111111111111:role/acme-lab_ephys_researcher'
+export FS_S3_OIDC_DEFAULT_BUCKET='example-bucket'
+export FS_S3_OIDC_DEFAULT_REGION='us-east-2'
+export FS_S3_OIDC_SUPPORT_GROUP='datajoint'
+export FS_S3_OIDC_STS_DURATION=3600
+export FS_IFRAME_OVERRIDE='https://portal.example.org'
+export APPLICATION_URL=''
+
+./dist/filestash-debug
+# 2024/10/22 21:02:51 SYST INFO [http] starting ...
+# 2024/10/22 21:02:52 SYST INFO [http] listening on :8334
+# 2024/10/22 21:02:55 HTTP 307 GET    0.1ms /login
+# 2024/10/22 21:02:55 HTTP 200 GET    0.1ms /custom.css
+# 2024/10/22 21:02:55 HTTP 401 GET    0.2ms /api/session
+# 2024/10/22 21:02:55 HTTP 200 GET    1.6ms /api/config
+# 2024/10/22 21:02:56 HTTP 304 GET    7.8ms /api/backend
+# 2024/10/22 21:02:56 HTTP 200 GET    0.4ms /manifest.json
+# 2024/10/22 21:02:57 HTTP 304 GET    0.1ms /sw_cache.js
+```
+
+Navigating to `http://localhost:8334/login#type=s3_oidc&token=xxx` will authorize the user and redirect to the S3 bucket. Can also pass `role_arn` to assume a specific role, `region` to specify a region e.g. if role doesn't have `GetBucketLocation`, `path` like `/example-bucket/acme-lab_ephys/` to set the root directory. Without the overrides in the query params, the application will fall back to the configuration values defined in the Admin Console and/or environment variables.
+
+Alternatively, pass `project` only in the URL: `http://localhost:8334/login#type=s3_oidc&project=acme-lab_ephys&token=xxx`, which will use the `role_arn` and other defaults defined in the Admin Console and/or environment variables to get the `path`, default `region`, and `role_arn` for the user.
+
+## How to Enable Internal Token Exchange in KeyCloak
+
+1. Turn on "preview" features (possibly only `token-exchange` is enough) and `kubectl apply` the updated KeyCloak deployment.
+2. Go to target client and turn on Permissions enabled switch in top level permissions tab.
+3. Click on the `token-exchange` permission and note the client that it redirects to, in our case it was `realm-management`.
+4. Go to `realm-management` Authorization -> Policies, then create a policy of Client type.
+    1. Name is `target-client-exchange`, and set the client to the source client (`works` for us)
+    2. Logic `positive`, and save the policy.
+5. Go back to target client, `workss3`, Permissions top level tab, click `token-exchange` permission again, and then add the `target-client-exchange` policy to permission and save
+    1. Permission should be unanimous
+6. Test:
+
+```bash
+curl -L -X POST \
+    -d "client_id=<source client ID, e.g. works>" \
+    -d "client_secret=<source client secret>" \
+    --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+    -d "subject_token=<source client access token>" \
+    --data-urlencode "requested_token_type=urn:ietf:params:oauth:token-type:refresh_token" \
+    -d "audience=<target client>" \
+    http://keycloak.example.org/realms/datajoint/protocol/openid-connect/token
+```
+
+This request should return an access and refresh token:
+
+```json
+{
+  "access_token": "<workss3 access token>",
+  "expires_in": 35415,
+  "refresh_expires_in": 35415,
+  "refresh_token": "<workss3 refresh token>",
+  "token_type": "Bearer",
+  "not-before-policy": 0,
+  "session_state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "scope": "email profile groups"
+}
+```
+
+Access token decodes to:
+
+```json
+{
+  "exp": 1729917199,
+  "iat": 1729881784,
+  "auth_time": 1729873999,
+  "jti": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "iss": "https://keycloak.example.org/realms/datajoint",
+  "aud": [
+    "datajoint",
+    "acme-lab_ephys",
+    "account",
+    "workss3"
+  ],
+  "sub": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "typ": "Bearer",
+  "azp": "works",
+  "session_state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "acr": "1",
+  "realm_access": {
+    "roles": [
+      "datajoint",
+      "acme-lab_ephys",
+      "offline_access",
+      "default-roles-datajoint",
+      "uma_authorization"
+    ]
+  },
+  "resource_access": {
+    "account": {
+      "roles": [
+        "manage-account",
+        "manage-account-links",
+        "view-profile"
+      ]
+    }
+  },
+  "scope": "email profile groups",
+  "sid": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "email_verified": true,
+  "name": "Test User",
+  "groups": [
+    "datajoint",
+    "acme-lab_ephys",
+    "offline_access",
+    "default-roles-datajoint",
+    "uma_authorization"
+  ],
+  "preferred_username": "test-user",
+  "given_name": "Test",
+  "family_name": "User",
+  "email": "test-user@example.org"
+}
+```
+
+For assume role with token in AWS, `workss3` has a User Role Mapping in dedicated scopes, that makes the access token's `aud` the same as the `groups`. Then AWS converts `aud` to `oaud` [under the hood](https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif). `aud` won't be the same as grouops, unless you attach a role to the group via the User Role Mapping.
+
+# Documentation
+- [Getting started](https://www.filestash.app/docs/)
+- [Installation](https://www.filestash.app/docs/install-and-upgrade/)
+- [FAQ](https://www.filestash.app/docs/faq/)
+
 # Screenshots
 <p align="center">
     <a href="https://demo.filestash.app">

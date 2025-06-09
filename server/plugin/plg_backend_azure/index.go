@@ -1,4 +1,4 @@
-package plg_backend_azure
+package plg_backend_backblaze
 
 import (
 	"context"

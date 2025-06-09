@@ -8,10 +8,6 @@ build_init:
 	go generate -x ./server/...
 
 build_frontend:
-	make build_frontend_old
-	cd public && make compress
-
-build_frontend_old:
 	NODE_ENV=production npm run build
 	mkdir -p ./server/ctrl/static/www/canary/
 	cp -R ./public/assets ./server/ctrl/static/www/canary/
@@ -28,3 +24,9 @@ build_backend_amd64:
 
 clean_frontend:
 	rm -rf server/ctrl/static/www/
+
+clean_backend:
+	rm -rf dist
+
+debug:
+	CGO_ENABLED=1 go build --tags "fts5" -gcflags "all=-N -l" -o dist/filestash-debug cmd/main.go

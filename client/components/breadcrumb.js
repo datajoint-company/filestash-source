@@ -58,7 +58,9 @@ export class BreadCrumb extends React.Component {
         return (
             <div className="component_breadcrumb" role="navigation">
                 <BreadCrumbContainer className={this.props.className + " no-select"}>
+                    {/*
                     <Logout />
+                    */}
                     <ReactCSSTransitionGroup transitionName="breadcrumb" transitionLeave={true}
                         transitionEnter={true} transitionLeaveTimeout={150}
                         transitionEnterTimeout={200} transitionAppear={false}>

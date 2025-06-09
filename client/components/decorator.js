@@ -69,7 +69,9 @@ export function ErrorPage(WrappedComponent) {
                 const message = this.state.error.message || t("There is nothing in here");
                 return (
                     <div>
+                        {/*
                         <a href="/" className="backnav"><Icon name="arrow_left" />home</a>
+                        */}
                         <Container>
                             <div
                                 className="error-page"

@@ -169,12 +169,15 @@ func (this S3Backend) LoginForm() Form {
 }
 
 func (this S3Backend) Meta(path string) Metadata {
-	if path == "/" {
+	roleArn := this.params["session_role_arn"]
+	if path == "/" || roleArn == "" || strings.HasSuffix(roleArn, "_guest") {
 		return Metadata{
-			CanCreateFile: NewBool(false),
-			CanRename:     NewBool(false),
-			CanMove:       NewBool(false),
-			CanUpload:     NewBool(false),
+			CanCreateFile:      NewBool(false),
+			CanCreateDirectory: NewBool(false),
+			CanRename:          NewBool(false),
+			CanMove:            NewBool(false),
+			CanUpload:          NewBool(false),
+			CanShare:           NewBool(false),
 		}
 	}
 	return Metadata{}
@@ -514,7 +517,11 @@ func (this S3Backend) createSession(bucket string) *session.Session {
 			Bucket: aws.String(bucket),
 		})
 		if err != nil {
-			this.config.Region = aws.String("us-east-1")
+			if this.params["region"] != "" {
+				this.config.Region = aws.String(this.params["region"])
+			} else {
+				this.config.Region = aws.String("us-east-1")
+			}
 		} else {
 			if res.LocationConstraint == nil {
 				this.config.Region = aws.String("us-east-1")
@@ -528,6 +535,11 @@ func (this S3Backend) createSession(bucket string) *session.Session {
 	}
 	sess := session.New(this.config)
 	return sess
+}
+
+// public interface for createSession
+func (this S3Backend) CreateSession(bucket string) *session.Session {
+	return this.createSession(bucket)
 }
 
 type S3Path struct {
@@ -549,4 +561,9 @@ func (s S3Backend) path(p string) S3Path {
 		bucket,
 		path,
 	}
+}
+
+// public interface for path
+func (s S3Backend) Path(p string) S3Path {
+	return s.path(p)
 }

@@ -21,6 +21,7 @@ import (
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_backend_nfs"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_backend_nop"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_backend_s3"
+	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_backend_s3_oidc"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_backend_samba"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_backend_sftp"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_backend_storj"
@@ -35,7 +36,7 @@ import (
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_search_stateless"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_security_scanner"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_security_svg"
-	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_starter_http"
+	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_starter_https"
 	_ "github.com/mickael-kerjean/filestash/server/plugin/plg_video_transcoder"
 )
 

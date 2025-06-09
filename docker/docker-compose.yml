@@ -1,15 +1,41 @@
 version: '2'
 services:
   app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.debug
+      # dockerfile: docker/Dockerfile
+      tags:
+        - registry.example.org/filestash:latest
+      cache_from:
+        - type=gha
+      cache_to:
+        - type=gha
     container_name: filestash
-    image: machines/filestash:latest
+    image: registry.example.org/filestash:0.2.7
     restart: always
     environment:
+    - ADMIN_PASSWORD
     - APPLICATION_URL=
-    - CANARY=true
-    - OFFICE_URL=http://wopi_server:9980
-    - OFFICE_FILESTASH_URL=http://app:8334
-    - OFFICE_REWRITE_URL=http://127.0.0.1:9980
+    # - CANARY=true
+    # - OFFICE_URL=http://wopi_server:9980
+    # - OFFICE_FILESTASH_URL=http://app:8334
+    # - OFFICE_REWRITE_URL=http://127.0.0.1:9980
+    - GDRIVE_CLIENT_ID=<gdrive_client>
+    - GDRIVE_CLIENT_SECRET=<gdrive_secret>
+    - DROPBOX_CLIENT_ID=<dropbox_key>
+    - ONLYOFFICE_URL=http://onlyoffice
+    - FS_IFRAME_OVERRIDE=''
+    # s3_oidc plugin
+    - FS_S3_OIDC_DEFAULT_ROLE_ARN
+    - FS_S3_OIDC_CLIENT_SECRET
+    - FS_S3_OIDC_CLIENT_ID='works'
+    - FS_S3_OIDC_CLIENT_AUD='workss3'
+    - FS_S3_OIDC_TOKEN_ENDPOINT='https://keycloak.example.org/realms/datajoint/protocol/openid-connect/token'
+    - FS_S3_OIDC_DEFAULT_BUCKET='example-bucket'
+    - FS_S3_OIDC_DEFAULT_REGION='us-east-2'
+    - FS_S3_OIDC_SUPPORT_GROUP='datajoint'
+    - FS_S3_OIDC_STS_DURATION=3600
     ports:
     - "8334:8334"
     volumes:
@@ -31,6 +57,25 @@ services:
     user: root
     ports:
     - "9980:9980"
+
+  app-debug:
+    extends: app
+    profiles: ["debug"]
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.debug
+
+  app-test:
+    extends: app
+    profiles: ["test"]
+    build:
+      target: builder_backend
+    command:
+      - sh
+      - -c
+      - |
+        go test -v ./server/plugin/plg_backend_s3_oidc
+        # go test -v ./server/plugin/...
 
 volumes:
     filestash: {}

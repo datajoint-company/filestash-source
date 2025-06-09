@@ -3,14 +3,15 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
 	"os"
 	"os/exec"
 	"os/user"
 	"regexp"
 	"strings"
 	"sync"
+
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 var (
@@ -64,7 +65,7 @@ func NewConfiguration() Configuration {
 			Form{
 				Title: "general",
 				Elmnts: []FormElement{
-					FormElement{Name: "name", Type: "text", Default: "Filestash", Description: "Name has shown in the UI", Placeholder: "Default: \"Filestash\""},
+					FormElement{Name: "name", Type: "text", Default: "Files", Description: "Name has shown in the UI", Placeholder: "Default: \"Files\""},
 					FormElement{Name: "port", Type: "number", Default: 8334, Description: "Port on which the application is available.", Placeholder: "Default: 8334"},
 					FormElement{Name: "host", Type: "text", Description: "The host people need to use to access this server", Placeholder: "Eg: \"demo.filestash.app\""},
 					FormElement{Name: "secret_key", Type: "password", Description: "The key that's used to encrypt and decrypt content. Update this settings will invalidate existing user sessions and shared links, use with caution!"},
@@ -305,20 +306,12 @@ func (this *Configuration) Initialise() {
 	if len(this.Conn) == 0 {
 		this.Conn = []map[string]interface{}{
 			map[string]interface{}{
-				"type":  "sftp",
-				"label": "SFTP",
-			},
-			map[string]interface{}{
 				"type":  "s3",
 				"label": "S3",
 			},
 			map[string]interface{}{
-				"type":  "ftp",
-				"label": "FTP",
-			},
-			map[string]interface{}{
-				"type":  "webdav",
-				"label": "WebDAV",
+				"type":  "s3_oidc",
+				"label": "S3_OIDC",
 			},
 		}
 		shouldSave = true
