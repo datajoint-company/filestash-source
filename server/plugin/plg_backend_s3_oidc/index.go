@@ -132,12 +132,33 @@ func (this S3OIDCBackend) Init(params map[string]string, app *App) (IBackend, er
 	}
 
 	// Get S3 credentials from token
-	accessKey, secretKey, sessionToken, err := getSessionFromToken(
-		params["token"], params["role_arn"],
-		configParams["s3_oidc.client_id"], configParams["s3_oidc.client_secret"],
-		configParams["s3_oidc.client_audience"], durationSeconds,
-		configParams["s3_oidc.token_endpoint"], configParams["s3_oidc.support_group"],
-	)
+	mode, err := parseCredentialMode(Config.Get("s3_oidc.credential_mode").String())
+	if err != nil {
+		log.Printf("ERROR: %v", err)
+		return nil, ErrNotValid
+	}
+	var accessKey, secretKey, sessionToken string
+	if mode == credentialModeAssumeRole {
+		iss, issErr := issuerFromTokenEndpoint(configParams["s3_oidc.token_endpoint"],
+			Config.Get("s3_oidc.issuer").String())
+		if issErr != nil {
+			log.Printf("ERROR: %v", issErr)
+			return nil, ErrNotValid
+		}
+		accessKey, secretKey, sessionToken, err = getSessionFromTokenAssumeRole(
+			params["token"], params["role_arn"],
+			configParams["s3_oidc.client_id"], configParams["s3_oidc.support_group"],
+			iss, strings.TrimSpace(Config.Get("s3_oidc.role_arn_prefix").String()),
+			params["region"], durationSeconds,
+		)
+	} else {
+		accessKey, secretKey, sessionToken, err = getSessionFromToken(
+			params["token"], params["role_arn"],
+			configParams["s3_oidc.client_id"], configParams["s3_oidc.client_secret"],
+			configParams["s3_oidc.client_audience"], durationSeconds,
+			configParams["s3_oidc.token_endpoint"], configParams["s3_oidc.support_group"],
+		)
+	}
 	if err != nil {
 		return nil, err
 	}

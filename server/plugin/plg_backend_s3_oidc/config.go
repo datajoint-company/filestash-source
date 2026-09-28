@@ -187,6 +187,60 @@ var iframe_override = func() string {
 	}).String()
 }
 
+var credential_mode = func() string {
+	return Config.Get("s3_oidc.credential_mode").Schema(func(f *FormElement) *FormElement {
+		if f == nil {
+			f = &FormElement{}
+		}
+		f.Name = "credential_mode"
+		f.Type = "text"
+		f.Description = "How S3 credentials are obtained: 'web_identity' (default: token exchange + STS AssumeRoleWithWebIdentity) or 'assume_role' (verify the token locally, then STS AssumeRole with the server's own AWS credentials)"
+		f.Default = os.Getenv("FS_S3_OIDC_CREDENTIAL_MODE")
+		if f.Default != "" {
+			f.Placeholder = fmt.Sprintf("Default: '%s'", f.Default)
+		} else {
+			f.Placeholder = "web_identity"
+		}
+		return f
+	}).String()
+}
+
+var role_arn_prefix = func() string {
+	return Config.Get("s3_oidc.role_arn_prefix").Schema(func(f *FormElement) *FormElement {
+		if f == nil {
+			f = &FormElement{}
+		}
+		f.Name = "role_arn_prefix"
+		f.Type = "text"
+		f.Description = "assume_role mode only (required there): role ARNs must start with this, e.g. arn:aws:iam::111111111111:role/myorg_"
+		f.Default = os.Getenv("FS_S3_OIDC_ROLE_ARN_PREFIX")
+		if f.Default != "" {
+			f.Placeholder = fmt.Sprintf("Default: '%s'", f.Default)
+		} else {
+			f.Placeholder = ""
+		}
+		return f
+	}).String()
+}
+
+var issuer = func() string {
+	return Config.Get("s3_oidc.issuer").Schema(func(f *FormElement) *FormElement {
+		if f == nil {
+			f = &FormElement{}
+		}
+		f.Name = "issuer"
+		f.Type = "text"
+		f.Description = "assume_role mode only (optional): token issuer; derived from the token endpoint when empty"
+		f.Default = os.Getenv("FS_S3_OIDC_ISSUER")
+		if f.Default != "" {
+			f.Placeholder = fmt.Sprintf("Default: '%s'", f.Default)
+		} else {
+			f.Placeholder = ""
+		}
+		return f
+	}).String()
+}
+
 func loadS3OIDCConfig() {
 	client_id()
 	client_secret()
@@ -198,4 +252,7 @@ func loadS3OIDCConfig() {
 	region()
 	sts_duration()
 	iframe_override()
+	credential_mode()
+	role_arn_prefix()
+	issuer()
 }

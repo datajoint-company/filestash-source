@@ -12,7 +12,7 @@ services:
       cache_to:
         - type=gha
     container_name: filestash
-    image: registry.example.org/filestash:0.2.7
+    image: registry.example.org/filestash:0.2.8
     restart: always
     environment:
     - ADMIN_PASSWORD
