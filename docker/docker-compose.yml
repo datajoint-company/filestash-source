@@ -12,7 +12,7 @@ services:
       cache_to:
         - type=gha
     container_name: filestash
-    image: registry.example.org/filestash:0.2.7
+    image: registry.example.org/filestash:0.2.9
     restart: always
     environment:
     - ADMIN_PASSWORD
@@ -26,6 +26,14 @@ services:
     - DROPBOX_CLIENT_ID=<dropbox_key>
     - ONLYOFFICE_URL=http://onlyoffice
     - FS_IFRAME_OVERRIDE=''
+    - FS_CUSTOM_CSS
+    - FS_UPLOAD_BUTTON
+    - FS_REFRESH_AFTER_UPLOAD
+    - FS_FILEPAGE_DEFAULT_VIEW
+    - FS_UPLOAD_CHUNK_SIZE
+    - FS_FILEPAGE_DEFAULT_SORT
+    - FS_ZIP_TIMEOUT
+    - FS_SHARE_ENABLE
     # s3_oidc plugin
     - FS_S3_OIDC_DEFAULT_ROLE_ARN
     - FS_S3_OIDC_CLIENT_SECRET

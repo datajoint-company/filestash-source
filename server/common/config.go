@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"os/user"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -74,14 +75,14 @@ func NewConfiguration() Configuration {
 					FormElement{Name: "fork_button", Type: "boolean", Default: true, Description: "Display the fork button in the login screen"},
 					FormElement{Name: "logout", Type: "text", Default: "", Description: "Redirection URL whenever user click on the logout button"},
 					FormElement{Name: "display_hidden", Type: "boolean", Default: false, Description: "Should files starting with a dot be visible by default?"},
-					FormElement{Name: "refresh_after_upload", Type: "boolean", Default: false, Description: "Refresh directory listing after upload"},
-					FormElement{Name: "upload_button", Type: "boolean", Default: false, Description: "Display the upload button on any device"},
+					FormElement{Name: "refresh_after_upload", Type: "boolean", Default: defaultValueBool(false, "FS_REFRESH_AFTER_UPLOAD"), Id: "refresh_after_upload", Description: "Refresh directory listing after upload. Without it an upload gives no visible feedback."},
+					FormElement{Name: "upload_button", Type: "boolean", Default: defaultValueBool(false, "FS_UPLOAD_BUTTON"), Id: "upload_button", Description: "Display the upload button on any device. Off, desktop users get only the hover-only drop overlay."},
 					FormElement{Name: "upload_pool_size", Type: "number", Default: 15, Description: "Maximum number of files upload in parallel. Default: 15"},
-					FormElement{Name: "upload_chunk_size", Type: "number", Default: 0, Description: "Size of Chunks for Uploads in MB."},
-					FormElement{Name: "filepage_default_view", Type: "select", Default: "grid", Opts: []string{"list", "grid"}, Description: "Default layout for files and folder on the file page"},
-					FormElement{Name: "filepage_default_sort", Type: "select", Default: "type", Opts: []string{"type", "date", "name"}, Description: "Default order for files and folder on the file page"},
+					FormElement{Name: "upload_chunk_size", Type: "number", Default: DefaultValueInt(0, "FS_UPLOAD_CHUNK_SIZE"), Id: "upload_chunk_size", Description: "Size of Chunks for Uploads in MB. 0 disables chunking, so a large upload cannot resume after a network blip."},
+					FormElement{Name: "filepage_default_view", Type: "select", Default: defaultValue("grid", "FS_FILEPAGE_DEFAULT_VIEW"), Opts: []string{"list", "grid"}, Id: "filepage_default_view", Description: "Default layout for files and folder on the file page"},
+					FormElement{Name: "filepage_default_sort", Type: "select", Default: defaultValue("type", "FS_FILEPAGE_DEFAULT_SORT"), Opts: []string{"type", "date", "name"}, Id: "filepage_default_sort", Description: "Default order for files and folder on the file page"},
 					FormElement{Name: "cookie_timeout", Type: "number", Default: 60 * 24 * 7, Description: "Authentication Cookie expiration in minutes. Default: 60 * 24 * 7 = 1 week"},
-					FormElement{Name: "custom_css", Type: "long_text", Default: "", Description: "Set custom css code for your instance"},
+					FormElement{Name: "custom_css", Type: "long_text", Default: defaultValue("", "FS_CUSTOM_CSS"), Id: "custom_css", Description: "Set custom css code for your instance. Settable by FS_CUSTOM_CSS so it can live in deployment config rather than this console."},
 				},
 			},
 			Form{
@@ -97,7 +98,7 @@ func NewConfiguration() Configuration {
 					Form{
 						Title: "share",
 						Elmnts: []FormElement{
-							FormElement{Name: "enable", Type: "boolean", Default: true, Description: "Enable/Disable the share feature"},
+							FormElement{Name: "enable", Type: "boolean", Default: defaultValueBool(true, "FS_SHARE_ENABLE"), Id: "share_enable", Description: "Enable/Disable the share feature. On by default; a deployment fronting regulated data may want it off."},
 							FormElement{Name: "default_access", Type: "select", Default: "editor", Opts: []string{"editor", "viewer"}, Description: "Default access for shared links"},
 							FormElement{Name: "redirect", Type: "text", Placeholder: "redirection URL", Description: "When set, shared links will perform a redirection to another link. Example: https://example.com?full_path={{path}}"},
 						},
@@ -608,6 +609,34 @@ type ChangeListener struct {
 func defaultValue(dval string, envName string) string {
 	if val := os.Getenv(envName); val != "" {
 		return val
+	}
+	return dval
+}
+
+// DefaultValueInt is the int-typed sibling of defaultValue. Configuration.Int()
+// type-switches on float64/int64/int and yields 0 for a string, and 0 is a
+// meaningful value for these settings (chunking off, no timeout) rather than an
+// obvious error — so an unparseable env value falls back to dval.
+func DefaultValueInt(dval int, envName string) int {
+	if v := strings.TrimSpace(os.Getenv(envName)); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			return n
+		}
+		Log.Warning("config: %s=%q is not an integer, using %d", envName, v, dval)
+	}
+	return dval
+}
+
+// defaultValueBool is the bool-typed sibling of defaultValue. It must return a real
+// bool: Configuration.Bool() type-switches on bool and yields false for anything
+// else, so handing a "true" string to a boolean FormElement would pin it off.
+// An unrecognised value falls back to dval rather than silently reading as false.
+func defaultValueBool(dval bool, envName string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(envName))) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
 	}
 	return dval
 }

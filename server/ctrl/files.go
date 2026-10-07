@@ -39,7 +39,7 @@ func init() {
 			if f == nil {
 				f = &FormElement{}
 			}
-			f.Default = 60
+			f.Default = DefaultValueInt(60, "FS_ZIP_TIMEOUT")
 			f.Name = "zip_timeout"
 			f.Type = "number"
 			f.Description = "Timeout when user wants to download or extract a zip"
