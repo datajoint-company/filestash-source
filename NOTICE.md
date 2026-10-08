@@ -4,7 +4,7 @@ This is a modified version of [Filestash](https://github.com/mickael-kerjean/fil
 the GNU Affero General Public License, version 3 (see [LICENSE](LICENSE)). DataJoint modified it from
 2024-10-29 onward, and the modified version is distributed under the same license.
 
-This tree is the complete source of the version DataJoint released as image 0.2.9 (2026-10-07). Example
+This tree is the complete source of the version DataJoint released as image 0.2.9 (2026-10-08). Example
 settings, test fixtures and documentation name example hosts and people rather than DataJoint's own.
 
 ## Modifications
@@ -16,3 +16,4 @@ settings, test fixtures and documentation name example hosts and people rather t
 | 2025-01 to 2025-02 | Bucket parameters passed through; the admin password from the environment; the `s3` and `s3_oidc` backends enabled by default |
 | 2025-06 | Continuous integration fixes |
 | 2026-09 | An opt-in `assume_role` credential mode for the `s3_oidc` backend |
+| 2026-10 | Eight settings of the file browser settable from the environment; custom CSS documented |

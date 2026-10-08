@@ -51,6 +51,13 @@ type FormElement struct {
 	Required    bool        `json:"required"`
 }
 
+// Declared once so the advertised Opts and the value accepted from the environment
+// cannot drift apart.
+var (
+	filePageViewOpts = []string{"list", "grid"}
+	filePageSortOpts = []string{"type", "date", "name"}
+)
+
 func InitConfig() {
 	Config = NewConfiguration()
 	Config.Load()
@@ -75,14 +82,14 @@ func NewConfiguration() Configuration {
 					FormElement{Name: "fork_button", Type: "boolean", Default: true, Description: "Display the fork button in the login screen"},
 					FormElement{Name: "logout", Type: "text", Default: "", Description: "Redirection URL whenever user click on the logout button"},
 					FormElement{Name: "display_hidden", Type: "boolean", Default: false, Description: "Should files starting with a dot be visible by default?"},
-					FormElement{Name: "refresh_after_upload", Type: "boolean", Default: defaultValueBool(false, "FS_REFRESH_AFTER_UPLOAD"), Id: "refresh_after_upload", Description: "Refresh directory listing after upload. Without it an upload gives no visible feedback."},
-					FormElement{Name: "upload_button", Type: "boolean", Default: defaultValueBool(false, "FS_UPLOAD_BUTTON"), Id: "upload_button", Description: "Display the upload button on any device. Off, desktop users get only the hover-only drop overlay."},
+					FormElement{Name: "refresh_after_upload", Type: "boolean", Default: defaultValueBool(false, "FS_REFRESH_AFTER_UPLOAD"), Description: "Refresh directory listing after upload"},
+					FormElement{Name: "upload_button", Type: "boolean", Default: defaultValueBool(false, "FS_UPLOAD_BUTTON"), Description: "Display the upload button on any device"},
 					FormElement{Name: "upload_pool_size", Type: "number", Default: 15, Description: "Maximum number of files upload in parallel. Default: 15"},
-					FormElement{Name: "upload_chunk_size", Type: "number", Default: DefaultValueInt(0, "FS_UPLOAD_CHUNK_SIZE"), Id: "upload_chunk_size", Description: "Size of Chunks for Uploads in MB. 0 disables chunking, so a large upload cannot resume after a network blip."},
-					FormElement{Name: "filepage_default_view", Type: "select", Default: defaultValue("grid", "FS_FILEPAGE_DEFAULT_VIEW"), Opts: []string{"list", "grid"}, Id: "filepage_default_view", Description: "Default layout for files and folder on the file page"},
-					FormElement{Name: "filepage_default_sort", Type: "select", Default: defaultValue("type", "FS_FILEPAGE_DEFAULT_SORT"), Opts: []string{"type", "date", "name"}, Id: "filepage_default_sort", Description: "Default order for files and folder on the file page"},
+					FormElement{Name: "upload_chunk_size", Type: "number", Default: DefaultValueInt(0, "FS_UPLOAD_CHUNK_SIZE"), Description: "Size of Chunks for Uploads in MB. Read only by the canary frontend, so no effect while CANARY is unset; resume on failure is unverified there too."},
+					FormElement{Name: "filepage_default_view", Type: "select", Default: defaultValueEnum("grid", "FS_FILEPAGE_DEFAULT_VIEW", filePageViewOpts), Opts: filePageViewOpts, Description: "Default layout for files and folder on the file page"},
+					FormElement{Name: "filepage_default_sort", Type: "select", Default: defaultValueEnum("type", "FS_FILEPAGE_DEFAULT_SORT", filePageSortOpts), Opts: filePageSortOpts, Description: "Default order for files and folder on the file page"},
 					FormElement{Name: "cookie_timeout", Type: "number", Default: 60 * 24 * 7, Description: "Authentication Cookie expiration in minutes. Default: 60 * 24 * 7 = 1 week"},
-					FormElement{Name: "custom_css", Type: "long_text", Default: defaultValue("", "FS_CUSTOM_CSS"), Id: "custom_css", Description: "Set custom css code for your instance. Settable by FS_CUSTOM_CSS so it can live in deployment config rather than this console."},
+					FormElement{Name: "custom_css", Type: "long_text", Default: defaultValue("", "FS_CUSTOM_CSS"), Description: "Set custom css code for your instance"},
 				},
 			},
 			Form{
@@ -98,7 +105,7 @@ func NewConfiguration() Configuration {
 					Form{
 						Title: "share",
 						Elmnts: []FormElement{
-							FormElement{Name: "enable", Type: "boolean", Default: defaultValueBool(true, "FS_SHARE_ENABLE"), Id: "share_enable", Description: "Enable/Disable the share feature. On by default; a deployment fronting regulated data may want it off."},
+							FormElement{Name: "enable", Type: "boolean", Default: defaultValueBool(false, "FS_SHARE_ENABLE"), Description: "Enable/Disable the share feature. Off unless FS_SHARE_ENABLE is set: a share carries the creator's session, so the link holder acts as the creator and bypasses platform RBAC."},
 							FormElement{Name: "default_access", Type: "select", Default: "editor", Opts: []string{"editor", "viewer"}, Description: "Default access for shared links"},
 							FormElement{Name: "redirect", Type: "text", Placeholder: "redirection URL", Description: "When set, shared links will perform a redirection to another link. Example: https://example.com?full_path={{path}}"},
 						},
@@ -613,30 +620,71 @@ func defaultValue(dval string, envName string) string {
 	return dval
 }
 
-// DefaultValueInt is the int-typed sibling of defaultValue. Configuration.Int()
-// type-switches on float64/int64/int and yields 0 for a string, and 0 is a
-// meaningful value for these settings (chunking off, no timeout) rather than an
-// obvious error — so an unparseable env value falls back to dval.
+// DefaultValueInt is the int-typed sibling of defaultValue. Exported, unlike its
+// bool and enum siblings, only because server/ctrl calls it for FS_ZIP_TIMEOUT.
+// Configuration.Int() type-switches on float64/int64/int and yields 0 for a
+// string, so an unparseable env value would read as 0 rather than as an error.
+//
+// A non-positive value also falls back to dval where dval is itself positive.
+// zip_timeout is fed to time.Duration(...)*time.Second at ctrl/files.go:775 and
+// :880, so 0 or a negative number makes every zip time out the instant it starts.
+// The other caller, upload_chunk_size, has dval 0 and keeps 0 as its documented
+// "no chunking" value.
 func DefaultValueInt(dval int, envName string) int {
-	if v := strings.TrimSpace(os.Getenv(envName)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return n
-		}
-		Log.Warning("config: %s=%q is not an integer, using %d", envName, v, dval)
+	v := strings.TrimSpace(os.Getenv(envName))
+	if v == "" {
+		return dval
 	}
-	return dval
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		Log.Warning("config: %s=%q is not an integer, using %d", envName, v, dval)
+		return dval
+	}
+	if n <= 0 && dval > 0 {
+		Log.Warning("config: %s=%d is not positive, using %d", envName, n, dval)
+		return dval
+	}
+	return n
 }
 
 // defaultValueBool is the bool-typed sibling of defaultValue. It must return a real
 // bool: Configuration.Bool() type-switches on bool and yields false for anything
 // else, so handing a "true" string to a boolean FormElement would pin it off.
-// An unrecognised value falls back to dval rather than silently reading as false.
+//
+// An unrecognised value warns and falls back to dval. Falling back silently would
+// fail open on the one setting here that has a security consequence: share.enable
+// defaults to true, so a deployment writing FS_SHARE_ENABLE=disabled to turn
+// sharing off would keep it on with nothing in the log to say why.
 func defaultValueBool(dval bool, envName string) bool {
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(envName))) {
+	v := strings.TrimSpace(os.Getenv(envName))
+	switch strings.ToLower(v) {
+	case "":
+		return dval
 	case "1", "true", "yes", "on":
 		return true
 	case "0", "false", "no", "off":
 		return false
 	}
+	Log.Warning("config: %s=%q is not a boolean, using %v", envName, v, dval)
+	return dval
+}
+
+// defaultValueEnum is defaultValue for a select element, rejecting anything outside
+// opts. Passing an unknown value through is worse than ignoring it: the file page
+// reads CONFIG["default_view"] as `settings_get(...) || CONFIG[...] || "grid"`, and a
+// non-empty string is truthy, so the `|| "grid"` guard cannot catch a typo. The value
+// then reaches `view-${view}` as a class name and every `view === "grid"` branch
+// fails, rendering the page in neither layout.
+func defaultValueEnum(dval string, envName string, opts []string) string {
+	v := strings.TrimSpace(os.Getenv(envName))
+	if v == "" {
+		return dval
+	}
+	for _, opt := range opts {
+		if v == opt {
+			return v
+		}
+	}
+	Log.Warning("config: %s=%q is not one of [%s], using %q", envName, v, strings.Join(opts, " "), dval)
 	return dval
 }

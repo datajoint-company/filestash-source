@@ -82,7 +82,7 @@ services:
       - sh
       - -c
       - |
-        go test -v ./server/plugin/plg_backend_s3_oidc
+        go test -v ./server/common ./server/plugin/plg_backend_s3_oidc
         # go test -v ./server/plugin/...
 
 volumes:

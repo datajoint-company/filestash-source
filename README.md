@@ -110,8 +110,81 @@ export FS_S3_OIDC_DEFAULT_REGION='us-east-2'
 export FS_S3_OIDC_SUPPORT_GROUP='datajoint'
 export FS_S3_OIDC_STS_DURATION=3600
 export FS_IFRAME_OVERRIDE='https://portal.example.org'
+# Injected as /custom.css on both frontends; keeps UI tweaks in deployment config
+export FS_CUSTOM_CSS=''
+# Files-tab UX: a visible upload control, feedback after upload, list over grid
+export FS_UPLOAD_BUTTON='true'
+export FS_REFRESH_AFTER_UPLOAD='true'
+export FS_FILEPAGE_DEFAULT_VIEW='list'
+# Chunked uploads (MB; 0 = off), sort order, zip timeout (s), shared links.
+# Chunking is read only by the canary frontend, so it has no effect while CANARY
+# is unset, and resume-after-blip is unverified on canary too -- left at 0.
+export FS_UPLOAD_CHUNK_SIZE='0'
+export FS_FILEPAGE_DEFAULT_SORT='date'
+export FS_ZIP_TIMEOUT='600'
+export FS_SHARE_ENABLE='false'
 export APPLICATION_URL=''
+```
 
+
+`FS_CUSTOM_CSS` is served as `/custom.css` on both frontends, so per-deployment UI
+tweaks live in deployment config rather than in the Admin Console (whose state
+directory a kubernetes deployment does not persist). A worked example:
+
+```css
+/* Quick Access is not wanted here; hiding the component also removes its
+   "Frequently access folders will be shown here" placeholder and the 145px
+   it reserves at the top of every root listing. */
+.component_frequently-access { display: none; }
+
+/* A permanent drop zone. filestash's own (.component_filezone) is rendered
+   behind `NgIf cond={fileIsOver}`, so it does not exist in the DOM until a
+   drag is already under way and cannot be made static from CSS. What makes a
+   static one work is that connectDropFile() wraps .component_filesystem, so
+   the whole file area is the drop target and a box drawn inside it is
+   genuinely droppable. Anchored on .component_container to inherit the file
+   list's width rather than bleeding to the viewport edges. */
+.component_filesystem.is_folder > .component_container::before {
+    content: "Drag and drop your folder here to upload it with everything inside — or use CREATE NEW FOLDER above, open it, and drop your files in.";
+    display: block; margin: 14px auto 10px; max-width: 620px; padding: 25px 20px;
+    border: 2px dashed; border-radius: 6px; text-align: center; font-weight: bold;
+    font-size: .88em; line-height: 1.6; opacity: .6;
+}
+/* Mid-drag filestash renders .component_filezone in the same place; drop ours
+   then so the two never stack. */
+.component_filesystem.is_folder > .component_container:has(.component_filezone)::before {
+    display: none;
+}
+
+/* Relabel the create controls. The stock rule
+   `.component_submenu .component_container .menubar>span` sets font-size 12px
+   and letter-spacing .06em, so it must be matched on specificity or the
+   original text node survives and the replacement merely appends to it. The
+   label is a bare text node with no element children, so zeroing the font
+   collapses it and ::after carries the replacement. */
+.component_submenu .component_container .menubar > span.button-new-file,
+.component_submenu .component_container .menubar > span.button-new-folder {
+    font-size: 0; letter-spacing: 0;
+}
+.component_submenu .component_container .menubar > span.button-new-file::after {
+    content: "Create new file"; font-size: 12px; letter-spacing: .06em;
+}
+.component_submenu .component_container .menubar > span.button-new-folder::after {
+    content: "Create new folder"; font-size: 12px; letter-spacing: .06em;
+}
+```
+
+These selectors target the legacy frontend, the one served while `CANARY` is
+unset. They are written against the compiled stylesheet's own specificity, so
+they are more brittle than a code change — keep them few and deliberate.
+
+Note that an `FS_*` variable sets a setting's **default**, not its value. A value
+saved through the Admin Console is stored separately and still wins, so where the
+state directory *is* persisted, a console edit will override the environment. Where
+it is not persisted — the kubernetes deployment — a console edit appears to work and
+is silently lost on restart.
+
+```bash
 ./dist/filestash-debug
 # 2024/10/22 21:02:51 SYST INFO [http] starting ...
 # 2024/10/22 21:02:52 SYST INFO [http] listening on :8334
