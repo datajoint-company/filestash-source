@@ -2,7 +2,7 @@ import React from "react";
 import Path from "path";
 
 import { Files } from "../model/";
-import { confirm, notify, upload } from "../helpers/";
+import { confirm, notify, upload, copyToClipboard } from "../helpers/";
 import { Icon, NgIf, EventEmitter } from "./";
 import { t } from "../locales/";
 import "./upload_queue.scss";
@@ -80,12 +80,10 @@ class UploadQueueComponent extends React.Component {
 
     emphasis(path) {
         if (!path) return;
-        else if (path[0] === "/") path = path.slice(1);
-
-        if (navigator && navigator.clipboard) {
-            navigator.clipboard.writeText(path);
-            notify.send(t("Copied to clipboard"), "info");
-        }
+        path = path.replace(/^\//, "");
+        copyToClipboard(path).then((copied) => copied ?
+            notify.send(t("Copied to clipboard"), "info") :
+            notify.send(t("Couldn't copy the path"), "error"));
     }
 
     runner(id) {

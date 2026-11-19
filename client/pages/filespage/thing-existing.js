@@ -5,7 +5,7 @@ import { DragSource, DropTarget } from "react-dnd";
 
 import "./thing.scss";
 import { Card, NgIf, Icon, EventEmitter, img_placeholder, Input } from "../../components/";
-import { pathBuilder, basename, filetype, prompt, alert, leftPad, getMimeType, debounce, memory } from "../../helpers/";
+import { pathBuilder, basename, filetype, prompt, alert, leftPad, getMimeType, debounce, memory, notify, copyToClipboard } from "../../helpers/";
 import { Files } from "../../model/";
 import { ShareComponent } from "./share";
 import { TagComponent } from "./tag";
@@ -326,6 +326,7 @@ class ExistingThingComponent extends React.Component {
                             show={this.state.icon !== "loading" || this.props.file.time !== 0}
                             timestamp={this.props.file.time} />
                         <ActionButton
+                            copyPath={pathBuilder(this.props.path, this.props.file.name, this.props.file.type)}
                             onClickRename={this.onRenameRequest.bind(this)}
                             onClickDelete={this.onDeleteRequest.bind(this)}
                             onClickShare={this.onShareRequest.bind(this)}
@@ -459,8 +460,27 @@ const ActionButton = (props) => {
         props.onClickTag();
     }
 
+    // preventDefault keeps the row's link from opening the item; stopPropagation keeps
+    // the row's ctrl-click handler from selecting it.
+    const onCopy = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // No leading "/", the same format the upload queue copies.
+        const path = (props.copyPath || "").replace(/^\//, "");
+        copyToClipboard(path).then((copied) => copied ?
+            notify.send(t("Copied") + ": " + path, "info") :
+            notify.send(t("Couldn't copy the path"), "error"));
+    };
+
     return (
         <div className="component_action">
+            <NgIf type="inline" cond={props.is_renaming === false}>
+                <Icon
+                    name="copy"
+                    onClick={onCopy}
+                    title={t("Copy path")}
+                    className="component_updater--icon" />
+            </NgIf>
             <NgIf
                 type="inline"
                 cond={props.can_rename !== false && props.is_renaming === false}>

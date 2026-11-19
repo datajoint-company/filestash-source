@@ -18,10 +18,12 @@ RUN apk add make git gzip brotli && \
 FROM golang:1.23-bookworm AS builder_backend
 WORKDIR /home/filestash/
 COPY --from=builder_frontend /home/filestash/ .
+# the commit this build is made from, for builds without .git
+ARG BUILD_REF=
 RUN apt-get update > /dev/null && \
     apt-get install -y curl make > /dev/null 2>&1 && \
     apt-get install -y libjpeg-dev libtiff-dev libpng-dev libwebp-dev libraw-dev libheif-dev libgif-dev libvips-dev > /dev/null 2>&1 && \
-    make build_init && \
+    BUILD_REF="${BUILD_REF}" make build_init && \
     make build_backend && \
     mkdir -p ./dist/data/state/config/ && \
     cp config/config.json ./dist/data/state/config/config.json

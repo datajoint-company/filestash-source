@@ -5,6 +5,8 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.debug
       # dockerfile: docker/Dockerfile
+      args:
+        - BUILD_REF
       tags:
         - registry.example.org/filestash:latest
       cache_from:
@@ -12,7 +14,7 @@ services:
       cache_to:
         - type=gha
     container_name: filestash
-    image: registry.example.org/filestash:0.2.9
+    image: registry.example.org/filestash:0.2.12
     restart: always
     environment:
     - ADMIN_PASSWORD
@@ -34,6 +36,8 @@ services:
     - FS_FILEPAGE_DEFAULT_SORT
     - FS_ZIP_TIMEOUT
     - FS_SHARE_ENABLE
+    - FS_UPLOAD_NOTICE
+    - FS_SOURCE_URL
     # s3_oidc plugin
     - FS_S3_OIDC_DEFAULT_ROLE_ARN
     - FS_S3_OIDC_CLIENT_SECRET

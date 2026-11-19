@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -13,7 +14,9 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -144,7 +147,7 @@ func getSTS(
 
 	result, err := stsClient.AssumeRoleWithWebIdentity(input)
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to assume role with web identity: %v", err)
+		return "", "", "", fmt.Errorf("failed to assume role with web identity: %w", err)
 	}
 
 	// Extract credentials
@@ -246,7 +249,7 @@ func exchangeToken(
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("failed to send request: %v", err)
+		return "", fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -274,6 +277,25 @@ func exchangeToken(
 	}
 
 	return accessToken, nil
+}
+
+// isUnreachable reports whether err means a service could not be reached
+// (DNS, TLS, refused connection, timeout), not that it refused the request.
+func isUnreachable(err error) bool {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return true
+	}
+	var awsErr awserr.Error
+	return errors.As(err, &awsErr) && awsErr.Code() == request.ErrCodeRequestError
+}
+
+// credentialError is the error shown to the user when getting S3 credentials fails.
+func credentialError(err error) error {
+	if isUnreachable(err) {
+		return ErrNotReachable
+	}
+	return ErrPermissionDenied
 }
 
 // decodeToken decodes a Keycloak access token
@@ -439,7 +461,7 @@ func getSessionFromToken(
 	s3Token, exchangeErr := exchangeToken(kcToken, clientID, clientSecret, clientAud, tokenEndpoint)
 	if exchangeErr != nil {
 		slog.Printf("ERROR: Error getting token from token exchange flow: %v", exchangeErr)
-		return "", "", "", ErrPermissionDenied
+		return "", "", "", credentialError(exchangeErr)
 	}
 
 	// 3. Client credentials grant
@@ -460,7 +482,7 @@ func getSessionFromToken(
 	)
 	if err != nil {
 		slog.Printf("ERROR: Error getting STS token: %v", err)
-		return "", "", "", ErrPermissionDenied
+		return "", "", "", credentialError(err)
 	}
 
 	return accessKey, secretKey, sessionToken, nil

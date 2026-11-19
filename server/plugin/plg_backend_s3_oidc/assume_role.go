@@ -152,7 +152,7 @@ func fetchSigningKeys(issuer string) (map[string]*rsa.PublicKey, error) {
 		JwksURI string `json:"jwks_uri"`
 	}
 	if err := getJSON(issuer+"/.well-known/openid-configuration", &disc); err != nil {
-		return nil, fmt.Errorf("discovery: %v", err)
+		return nil, fmt.Errorf("discovery: %w", err)
 	}
 	if disc.Issuer != issuer {
 		return nil, fmt.Errorf("discovery issuer %q != expected %q", disc.Issuer, issuer)
@@ -170,7 +170,7 @@ func fetchSigningKeys(issuer string) (map[string]*rsa.PublicKey, error) {
 		} `json:"keys"`
 	}
 	if err := getJSON(disc.JwksURI, &set); err != nil {
-		return nil, fmt.Errorf("jwks: %v", err)
+		return nil, fmt.Errorf("jwks: %w", err)
 	}
 	keys := map[string]*rsa.PublicKey{}
 	for _, k := range set.Keys {
@@ -355,7 +355,7 @@ func getSessionFromTokenAssumeRole(
 		func(kid string) (*rsa.PublicKey, error) { return signingKeys.key(issuer, kid, now) })
 	if err != nil {
 		log.Printf("ERROR: token rejected: %v", err)
-		return "", "", "", ErrPermissionDenied
+		return "", "", "", credentialError(err)
 	}
 	if err := authorizeRoleStrict(claims, roleArn, rolePrefix, clientID, supportGroup); err != nil {
 		log.Printf("ERROR: user %q not authorised: %v", claims["preferred_username"], err)
@@ -372,7 +372,7 @@ func getSessionFromTokenAssumeRole(
 	})
 	if err != nil {
 		log.Printf("ERROR: AssumeRole %s: %v", roleArn, err)
-		return "", "", "", ErrPermissionDenied
+		return "", "", "", credentialError(err)
 	}
 	c := out.Credentials
 	return aws.StringValue(c.AccessKeyId), aws.StringValue(c.SecretAccessKey), aws.StringValue(c.SessionToken), nil

@@ -10,9 +10,12 @@ import {
     onMultiDownload, onUpload, onSearch,
 } from "./filespage.helper";
 import { NgIf, NgShow, Loader, EventReceiver, LoggedInOnly, ErrorPage } from "../components/";
-import { notify, settings_get, settings_put } from "../helpers/";
-import { BreadCrumb, FileSystem, FrequentlyAccess, Submenu, Sidebar } from "./filespage/";
+import { notify, settings_get, settings_put, debounce } from "../helpers/";
+import { BreadCrumb, FileSystem, FrequentlyAccess, Submenu } from "./filespage/";
 import { MobileFileUpload } from "./filespage/filezone";
+import { UploadNotice } from "./filespage/upload_notice";
+import { isInboxPath } from "./filespage/upload_notice.helper";
+import { FolderTree } from "./filespage/folder_tree";
 import InfiniteScroll from "react-infinite-scroller";
 import { t } from "../locales/";
 
@@ -25,6 +28,9 @@ const LAST_PAGE_PARAMS = {
     scroll: 0,
     page_number: PAGE_NUMBER_INIT,
 };
+
+// Module-level so the notice survives the page remounting, e.g. after opening a file.
+const UPLOAD_NOTICE = { visible: false };
 
 export class FilesPageComponent extends React.Component {
     constructor(props) {
@@ -46,32 +52,50 @@ export class FilesPageComponent extends React.Component {
             tags: null,
             page_number: PAGE_NUMBER_INIT,
             loading: true,
+            upload_notice: UPLOAD_NOTICE.visible,
+            tree_version: 0,
         };
         this.$scroll = createRef();
 
         this.observers = [];
         this.shortcut = this.shortcut.bind(this);
+        // An upload sends file.refresh after each file, so the tree is listed again once they stop.
+        this.refreshTreeSoon = debounce(() => this.refreshTree(), 1000);
     }
 
     componentDidMount() {
         this.onRefresh(this.state.path, "directory");
 
         // subscriptions
-        this.props.subscribe("file.create", function() {
+        this.props.subscribe("file.create", function(path, type) {
             return onCreate.apply(this, arguments).then(() => {
+                this.refreshTree();
                 if (this.state.permissions && this.state.permissions.refresh_on_create === true) {
                     this.onRefresh(this.state.path, "directory");
                 }
                 return Promise.resolve();
             });
         }.bind(this));
-        this.props.subscribe("file.upload", onUpload.bind(this));
-        this.props.subscribe("file.rename", onRename.bind(this));
-        this.props.subscribe("file.rename.multiple", onMultiRename.bind(this));
-        this.props.subscribe("file.delete", onDelete.bind(this));
-        this.props.subscribe("file.delete.multiple", onMultiDelete.bind(this));
+        this.props.subscribe("file.upload", (path, e) => {
+            if (window.CONFIG["upload_notice"] && isInboxPath(path)) {
+                UPLOAD_NOTICE.visible = true;
+                this.setState({ upload_notice: true });
+            }
+            return onUpload.call(this, path, e);
+        });
+        this.props.subscribe("file.rename", (from, to, type) => onRename.call(this, from, to, type)
+            .then(() => this.refreshTree()));
+        this.props.subscribe("file.rename.multiple", (arr) => onMultiRename.call(this, arr)
+            .then(() => this.refreshTree()));
+        this.props.subscribe("file.delete", (path, type) => onDelete.call(this, path, type)
+            .then(() => this.refreshTree()));
+        this.props.subscribe("file.delete.multiple", (arr) => onMultiDelete.call(this, arr)
+            .then(() => this.refreshTree()));
         this.props.subscribe("file.download.multiple", onMultiDownload.bind(this));
-        this.props.subscribe("file.refresh", this.onRefresh.bind(this));
+        this.props.subscribe("file.refresh", (...args) => {
+            this.onRefresh(...args);
+            this.refreshTreeSoon();
+        });
         this.props.subscribe("file.select", this.toggleSelect.bind(this));
         window.addEventListener("keydown", this.shortcut);
     }
@@ -86,6 +110,7 @@ export class FilesPageComponent extends React.Component {
         this.props.unsubscribe("file.select");
         window.removeEventListener("keydown", this.shortcut);
         this._cleanupListeners();
+        this.unmounted = true;
 
         LAST_PAGE_PARAMS.path = this.state.path;
         LAST_PAGE_PARAMS.scroll = this.$scroll.current.scrollTop;
@@ -262,6 +287,16 @@ export class FilesPageComponent extends React.Component {
         return;
     }
 
+    refreshTree() {
+        if (this.unmounted) return;
+        this.setState({ tree_version: this.state.tree_version + 1 });
+    }
+
+    dismissUploadNotice() {
+        UPLOAD_NOTICE.visible = false;
+        this.setState({ upload_notice: false });
+    }
+
     toggleSelect(path) {
         const idx = this.state.selected.indexOf(path);
         if (idx == -1) {
@@ -284,46 +319,55 @@ export class FilesPageComponent extends React.Component {
         return (
             <div className="component_page_filespage">
                 <BreadCrumb className="breadcrumb" path={this.state.path} currentSelection={this.state.selected} />
-                <div onClick={(e) => this.handleMultiSelect([], e)} className="selectablegroup">
-                    <div className="page_container">
-                        <div ref={this.$scroll} className="scroll-y">
-                            <InfiniteScroll
-                                pageStart={0} loader={$moreLoading}
-                                hasMore={this.state.files.length > 70}
-                                initialLoad={false} useWindow={false}
-                                loadMore={this.loadMore.bind(this)} threshold={100}>
-                                {/* <Sidebar path={this.state.path}/> */}
-                                <NgShow
-                                    className="container"
-                                    cond={!!this.state.is_search || !this.state.loading}>
-                                    <NgIf cond={this.state.path === "/" && window.self === window.top}>
-                                        <FrequentlyAccess tags={this.state.tags} files={this.state.frequents} />
-                                    </NgIf>
-                                    <Submenu
-                                        path={this.state.path}
-                                        sort={this.state.sort}
-                                        view={this.state.view}
-                                        onSearch={this.onSearch.bind(this)}
-                                        onViewUpdate={(value) => this.onView(value)}
-                                        onSortUpdate={(value) => this.onSort(value)}
-                                        accessRight={this.state.permissions || {}}
-                                        selected={this.state.selected} />
-                                    <NgIf cond={!this.state.loading}>
-                                        <FileSystem
-                                            path={this.state.path} sort={this.state.sort}
-                                            view={this.state.view} selected={this.state.selected}
-                                            files={this.state.files.slice(0, this.state.page_number * LOAD_PER_SCROLL)}
-                                            isSearch={this.state.is_search}
-                                            metadata={this.state.permissions || {}}
-                                            onSort={this.onSort.bind(this)}
-                                            onView={this.onView.bind(this)} />
-                                    </NgIf>
-                                </NgShow>
-                            </InfiniteScroll>
-                            <NgIf cond={this.state.loading === true}>
-                                <Loader/>
-                            </NgIf>
-                            <MobileFileUpload path={this.state.path} accessRight={this.state.permissions || {}} />
+                <div className="with_tree">
+                    <FolderTree
+                        path={this.state.path} version={this.state.tree_version}
+                        showHidden={!!this.state.show_hidden} />
+                    <div onClick={(e) => this.handleMultiSelect([], e)} className="selectablegroup">
+                        <div className="page_container">
+                            <div ref={this.$scroll} className="scroll-y">
+                                <InfiniteScroll
+                                    pageStart={0} loader={$moreLoading}
+                                    hasMore={this.state.files.length > 70}
+                                    initialLoad={false} useWindow={false}
+                                    loadMore={this.loadMore.bind(this)} threshold={100}>
+                                    <NgShow
+                                        className="container"
+                                        cond={!!this.state.is_search || !this.state.loading}>
+                                        <NgIf cond={this.state.path === "/" && window.self === window.top}>
+                                            <FrequentlyAccess tags={this.state.tags} files={this.state.frequents} />
+                                        </NgIf>
+                                        <NgIf cond={this.state.upload_notice === true}>
+                                            <UploadNotice
+                                                text={window.CONFIG["upload_notice"]}
+                                                onDismiss={() => this.dismissUploadNotice()} />
+                                        </NgIf>
+                                        <Submenu
+                                            path={this.state.path}
+                                            sort={this.state.sort}
+                                            view={this.state.view}
+                                            onSearch={this.onSearch.bind(this)}
+                                            onViewUpdate={(value) => this.onView(value)}
+                                            onSortUpdate={(value) => this.onSort(value)}
+                                            accessRight={this.state.permissions || {}}
+                                            selected={this.state.selected} />
+                                        <NgIf cond={!this.state.loading}>
+                                            <FileSystem
+                                                path={this.state.path} sort={this.state.sort}
+                                                view={this.state.view} selected={this.state.selected}
+                                                files={this.state.files.slice(0, this.state.page_number * LOAD_PER_SCROLL)}
+                                                isSearch={this.state.is_search}
+                                                metadata={this.state.permissions || {}}
+                                                onSort={this.onSort.bind(this)}
+                                                onView={this.onView.bind(this)} />
+                                        </NgIf>
+                                    </NgShow>
+                                </InfiniteScroll>
+                                <NgIf cond={this.state.loading === true}>
+                                    <Loader/>
+                                </NgIf>
+                                <MobileFileUpload path={this.state.path} accessRight={this.state.permissions || {}} />
+                            </div>
                         </div>
                     </div>
                 </div>

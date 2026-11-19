@@ -90,6 +90,7 @@ func NewConfiguration() Configuration {
 					FormElement{Name: "filepage_default_sort", Type: "select", Default: defaultValueEnum("type", "FS_FILEPAGE_DEFAULT_SORT", filePageSortOpts), Opts: filePageSortOpts, Description: "Default order for files and folder on the file page"},
 					FormElement{Name: "cookie_timeout", Type: "number", Default: 60 * 24 * 7, Description: "Authentication Cookie expiration in minutes. Default: 60 * 24 * 7 = 1 week"},
 					FormElement{Name: "custom_css", Type: "long_text", Default: defaultValue("", "FS_CUSTOM_CSS"), Description: "Set custom css code for your instance"},
+					FormElement{Name: "upload_notice", Type: "long_text", Default: defaultValue("", "FS_UPLOAD_NOTICE"), Description: "Banner shown above the file list when an upload into inbox/ starts, until the user dismisses it. Empty: no banner."},
 				},
 			},
 			Form{
@@ -364,6 +365,7 @@ func (this *Configuration) Export() interface{} {
 		UploadPoolSize          int               `json:"upload_pool_size"`
 		UploadChunkSize         int               `json:"upload_chunk_size"`
 		RefreshAfterUpload      bool              `json:"refresh_after_upload"`
+		UploadNotice            string            `json:"upload_notice"`
 		FilePageDefaultSort     string            `json:"default_sort"`
 		FilePageDefaultView     string            `json:"default_view"`
 		AuthMiddleware          []string          `json:"auth"`
@@ -386,6 +388,7 @@ func (this *Configuration) Export() interface{} {
 		UploadPoolSize:          this.Get("general.upload_pool_size").Int(),
 		UploadChunkSize:         this.Get("general.upload_chunk_size").Int(),
 		RefreshAfterUpload:      this.Get("general.refresh_after_upload").Bool(),
+		UploadNotice:            this.Get("general.upload_notice").String(),
 		FilePageDefaultSort:     this.Get("general.filepage_default_sort").String(),
 		FilePageDefaultView:     this.Get("general.filepage_default_view").String(),
 		AuthMiddleware: func() []string {

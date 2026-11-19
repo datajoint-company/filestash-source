@@ -73,7 +73,7 @@ var token_endpoint = func() string {
 		if f.Default != "" {
 			f.Placeholder = fmt.Sprintf("Default: '%s'", f.Default)
 		} else {
-			f.Placeholder = "https://keycloak-qa.datajoint.io/realms/datajoint/protocol/openid-connect/token"
+			f.Placeholder = "https://keycloak.example.org/realms/<realm>/protocol/openid-connect/token"
 		}
 		return f
 	}).String()
@@ -127,7 +127,7 @@ var bucket = func() string {
 		if f.Default != "" {
 			f.Placeholder = fmt.Sprintf("Default: '%s'", f.Default)
 		} else {
-			f.Placeholder = "dj-sciops"
+			f.Placeholder = "my-bucket"
 		}
 		return f
 	}).String()

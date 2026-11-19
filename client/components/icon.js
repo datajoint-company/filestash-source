@@ -65,6 +65,8 @@ export const Icon = (props) => {
         img = "/assets/icons/delete.svg";
     } else if (props.name === "share") {
         img = "/assets/icons/share.svg";
+    } else if (props.name === "copy") {
+        img = "/assets/icons/copy.svg";
     } else if (props.name === "tag") {
         img = "/assets/icons/tag.svg";
     } else if (props.name === "bucket") {
@@ -163,6 +165,7 @@ export const Icon = (props) => {
             onError={() => Log.send(`cannot load icon ${props.name}`)}
             style={props.style}
             onClick={props.onClick}
+            title={props.title}
             src={img}
             alt={props.name}/>
     );

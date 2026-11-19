@@ -67,6 +67,14 @@ var (
 	SECRET_KEY_DERIVATE_FOR_SIGNATURE string
 )
 
+var (
+	// Where the source of this version is published, linked as given from the
+	// About page. A modified Filestash must offer its users its own source
+	// (AGPL-3.0 section 13), so a fork sets it; unset, the About page links
+	// upstream's repository at BUILD_REF.
+	SOURCE_URL = strings.TrimRight(env("FS_SOURCE_URL", ""), "/")
+)
+
 /*
  * Improve security by calculating derivative of the secret key to restrict the attack surface
  * in the worst case scenario with one compromise secret key

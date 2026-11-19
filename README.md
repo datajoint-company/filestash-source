@@ -123,9 +123,20 @@ export FS_UPLOAD_CHUNK_SIZE='0'
 export FS_FILEPAGE_DEFAULT_SORT='date'
 export FS_ZIP_TIMEOUT='600'
 export FS_SHARE_ENABLE='false'
+# Banner when an upload into inbox/ starts (empty: none)
+export FS_UPLOAD_NOTICE='Your upload has started. It may take a few minutes for the pipeline to begin data processing.'
+# Where the source of this version is published, linked as given from the About
+# page (/about). This fork must offer its users its own source (AGPL-3.0
+# section 13): set it to the published release. Unset, /about links upstream.
+export FS_SOURCE_URL='https://github.com/datajoint-company/filestash-source/tree/datajoint-<version>'
 export APPLICATION_URL=''
 ```
 
+
+The tree beside the file list shows the number of files directly in a folder once
+that folder has been opened. Files further down are not counted, so a Zarr store,
+a partitioned Parquet dataset or an Iceberg table shows no count, and neither does a
+folder that was never opened: a blank count does not mean the folder is empty.
 
 `FS_CUSTOM_CSS` is served as `/custom.css` on both frontends, so per-deployment UI
 tweaks live in deployment config rather than in the Admin Console (whose state
@@ -280,7 +291,7 @@ Access token decodes to:
   "scope": "email profile groups",
   "sid": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
   "email_verified": true,
-  "name": "Test User",
+  "name": "Jane Doe",
   "groups": [
     "datajoint",
     "acme-lab_ephys",
@@ -288,10 +299,10 @@ Access token decodes to:
     "default-roles-datajoint",
     "uma_authorization"
   ],
-  "preferred_username": "test-user",
-  "given_name": "Test",
-  "family_name": "User",
-  "email": "test-user@example.org"
+  "preferred_username": "jdoe",
+  "given_name": "Jane",
+  "family_name": "Doe",
+  "email": "jdoe@example.com"
 }
 ```
 
@@ -351,3 +362,15 @@ The architecture is designed to enable implementers to build file managers that 
 - This project is tested with BrowserStack
 - Logo derived from the work of [ssnjrthegr8](https://github.com/ssnjrthegr8), Iconography from [flaticon](https://www.flaticon.com/), [fontawesome](https://fontawesome.com) and [material](https://material.io/icons/)
 - [libvips](https://github.com/libvips/libvips) and [libraw](https://github.com/LibRaw/LibRaw). Those libraries are statically compiled in Filestash. Instructions to build Filestash is available [here](https://github.com/mickael-kerjean/filestash/blob/master/.drone.yml) and instructions to create your own static library for libvips and libraw is to be found [here](https://github.com/mickael-kerjean/filestash/tree/master/server/plugin/plg_image_light/deps)
+
+## Releasing: publish the source
+
+This is a modified Filestash (AGPL-3.0) that users reach over the network, so the source of every
+released image is published to [filestash-source](https://github.com/datajoint-company/filestash-source)
+(see `NOTICE.md`). After an image is released:
+
+1. `scripts/publish-source/publish.sh <version> <commit>` exports the release's tree, cleans what
+   the image isn't built from, commits and tags it (`datajoint-<version>`), and pushes once you
+   confirm.
+2. Deploy that image with `FS_SOURCE_URL` set to the tag's URL (the script prints it); `/about`
+   links it.

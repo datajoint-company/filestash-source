@@ -9,9 +9,15 @@ import (
 )
 
 func main() {
-	cmd, b := exec.Command("git", "rev-parse", "HEAD"), new(strings.Builder)
-	cmd.Stdout = b
-	cmd.Run()
+	// The commit this build is made from: BUILD_REF when the build passes it,
+	// else git's HEAD.
+	ref := strings.TrimSpace(os.Getenv("BUILD_REF"))
+	if ref == "" {
+		cmd, b := exec.Command("git", "rev-parse", "HEAD"), new(strings.Builder)
+		cmd.Stdout = b
+		cmd.Run()
+		ref = strings.TrimSpace(b.String())
+	}
 
 	f, err := os.OpenFile("../common/constants_generated.go", os.O_CREATE|os.O_WRONLY, os.ModePerm)
 	if err != nil {
@@ -26,6 +32,6 @@ func init() {
     BUILD_REF = "%s"
     BUILD_DATE = "%s"
 }
-	`, strings.TrimSpace(b.String()), time.Now().Format("20060102"))))
+	`, ref, time.Now().Format("20060102"))))
 	f.Close()
 }

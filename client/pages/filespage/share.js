@@ -95,8 +95,9 @@ export class ShareComponent extends React.Component {
     }
 
     copyLinkInClipboard(link) {
-        copyToClipboard(link);
-        notify.send(t("The link was copied in the clipboard"), "INFO");
+        copyToClipboard(link).then((copied) => copied ?
+            notify.send(t("The link was copied in the clipboard"), "INFO") :
+            notify.send(t("Couldn't copy the link"), "error"));
     }
 
     onRegisterLink(e) {

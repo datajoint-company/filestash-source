@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"io/fs"
 	"net/http"
@@ -211,6 +212,16 @@ var listOfPlugins map[string][]string = map[string][]string{
 	"custom":     []string{},
 }
 
+// Where a path of this version's source is: under FS_SOURCE_URL when the
+// build is a fork that publishes its own, else in upstream's repository at
+// the build's commit.
+func sourceOf(path string) string {
+	if SOURCE_URL != "" {
+		return SOURCE_URL + path
+	}
+	return "https://github.com/mickael-kerjean/filestash/tree/" + BUILD_REF + path
+}
+
 func AboutHandler(ctx *App, res http.ResponseWriter, req *http.Request) {
 	t, _ := template.
 		New("about").
@@ -223,8 +234,8 @@ func AboutHandler(ctx *App, res http.ResponseWriter, req *http.Request) {
 				}
 				list := strings.Split(lstr, " ")
 				for i, _ := range list {
-					list[i] = `<a href="https://github.com/mickael-kerjean/filestash/tree/` + commit +
-						`/server/plugin/` + list[i] + `" target="_blank">` + list[i] + `</a>`
+					list[i] = `<a href="` + html.EscapeString(sourceOf("/server/plugin/"+list[i])) +
+						`" target="_blank">` + html.EscapeString(list[i]) + `</a>`
 				}
 				return strings.Join(list, " ")
 			},
@@ -232,7 +243,8 @@ func AboutHandler(ctx *App, res http.ResponseWriter, req *http.Request) {
 		Parse(Page(`
 	  <h1> {{ .Version }} </h1>
 	  <table>
-		<tr> <td style="width:150px;"> Commit hash </td> <td> <a href="https://github.com/mickael-kerjean/filestash/tree/{{ .CommitHash }}">{{ .CommitHash }}</a> </td> </tr>
+		<tr> <td style="width:150px;"> Commit hash </td> <td> <a href="{{ .SourceURL | html }}">{{ .CommitHash | html }}</a> </td> </tr>
+		<tr> <td> Source code </td> <td> <a href="{{ .SourceURL | html }}">{{ .SourceURL | html }}</a> </td> </tr>
 		<tr> <td> Binary hash </td> <td> {{ index .Checksum 0}} </td> </tr>
 		<tr> <td> Config hash </td> <td> {{ index .Checksum 1}} </td> </tr>
 		<tr> <td> License </td> <td> {{ .License }} </td> </tr>
@@ -267,12 +279,14 @@ func AboutHandler(ctx *App, res http.ResponseWriter, req *http.Request) {
 	t.Execute(res, struct {
 		Version    string
 		CommitHash string
+		SourceURL  string
 		Checksum   []string
 		License    string
 		Plugins    []string
 	}{
 		Version:    fmt.Sprintf("Filestash %s.%s", APP_VERSION, BUILD_DATE),
 		CommitHash: BUILD_REF,
+		SourceURL:  sourceOf(""),
 		Checksum: []string{
 			hashFileContent(GetAbsolutePath("filestash"), 0),
 			hashFileContent(GetAbsolutePath(CONFIG_PATH, "config.json"), 0),

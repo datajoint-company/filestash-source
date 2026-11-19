@@ -250,19 +250,13 @@ func TestCanAssumeRoleFromRawToken(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "support group",
+			name:     "support group, with project roles",
 			rawToken: fakeToken(withProjectRoles),
 			roleArn:  "dev_fakeproject_researcher",
 			expected: true,
 		},
 		{
-			name:     "support group",
-			rawToken: fakeToken(withProjectRoles),
-			roleArn:  "dev_fakeproject_researcher",
-			expected: true,
-		},
-		{
-			name:     "support group",
+			name:     "support group, no project roles",
 			rawToken: fakeToken(withoutProjectRoles),
 			roleArn:  "dev_fakeproject_researcher",
 			expected: true,

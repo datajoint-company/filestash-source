@@ -22,11 +22,14 @@ RUN apt-get update > /dev/null && \
 
 COPY --from=builder_frontend /home/ ./
 COPY . .
+# The commit this image is built from, for the About page's source link; when
+# empty, `make build_init` reads it from git.
+ARG BUILD_REF=
 # COPY cmd /home/cmd
 # COPY server /home/server
 # COPY embed.go go.mod go.sum /home/
 
-RUN make build_init && \
+RUN BUILD_REF="${BUILD_REF}" make build_init && \
     make build_backend && \
     mkdir -p ./dist/data/state/config/ && \
     cp config/config.json ./dist/data/state/config/config.json
@@ -34,34 +37,13 @@ RUN make build_init && \
 # STEP4: Create the prod image from the build
 FROM debian:stable-slim
 RUN apt-get update > /dev/null && \
-    apt-get install -y --no-install-recommends apt-utils curl emacs-nox ffmpeg zip poppler-utils libheif-dev && \
-    apt-get install -y curl emacs-nox ffmpeg zip poppler-utils > /dev/null
+    apt-get install -y --no-install-recommends apt-utils ca-certificates curl emacs-nox ffmpeg zip poppler-utils libheif-dev
 # org-mode: html export
 COPY --from=builder_backend /home/server/.assets/emacs/htmlize.el /usr/share/emacs/site-lisp/htmlize.el
 # org-mode: markdown export
 COPY --from=builder_backend /home/server/.assets/emacs/ox-gfm.el /usr/share/emacs/site-lisp/ox-gfm.el
-# org-mode: pdf export (with a light latex distribution)
-RUN cd && apt-get install -y wget perl > /dev/null && \
-    export CTAN_REPO="http://mirror.las.iastate.edu/tex-archive/systems/texlive/tlnet" && \
-    curl -sL "https://yihui.name/gh/tinytex/tools/install-unx.sh" | sh && \
-    mv ~/.TinyTeX /usr/share/tinytex && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install wasy && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install ulem && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install marvosym && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install wasysym && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install xcolor && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install listings && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install parskip && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install float && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install wrapfig && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install sectsty && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install capt-of && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install epstopdf-pkg && \
-    /usr/share/tinytex/bin/$(uname -m)-linux/tlmgr install cm-super && \
-    ln -s /usr/share/tinytex/bin/$(uname -m)-linux/pdflatex /usr/local/bin/pdflatex && \
-    apt-get purge -y --auto-remove perl wget && \
-    # Cleanup
-    find /usr/share/ -name 'doc' | xargs rm -rf && \
+# Cleanup
+RUN find /usr/share/ -name 'doc' | xargs rm -rf && \
     find /usr/share/emacs -name '*.pbm' | xargs rm -f && \
     find /usr/share/emacs -name '*.png' | xargs rm -f && \
     find /usr/share/emacs -name '*.xpm' | xargs rm -f
